@@ -1,0 +1,196 @@
+# 7-Day Weather Forecasting — Starter Template
+
+This repo template helps you quickly fork and practice contributing to a 7-day weather forecasting project. It includes a minimal Flask backend that fetches forecast data from OpenWeatherMap, a simple frontend, and instructions to run locally and create pull requests.
+
+---
+
+## ✅ What’s included
+
+```
+├── README.md                <- This file
+├── backend/
+│   ├── app.py               <- Minimal Flask API
+│   ├── requirements.txt     <- Python deps
+│   └── .env.example         <- Example env (put your API key here)
+├── frontend/
+│   ├── index.html           <- Simple UI to show 7-day forecast
+│   └── script.js            <- Fetches data from backend
+├── .gitignore
+└── LICENSE
+```
+
+---
+
+## Quick setup (after forking)
+
+1. **Fork** this repo on GitHub.
+2. **Clone** your fork locally:
+
+   ```bash
+   git clone https://github.com/<your-username>/Git-new.git
+   cd Git-new
+   ```
+3. Create a new branch for your change:
+
+   ```bash
+   git checkout -b feat/add-weather-backend
+   ```
+4. Replace the placeholder API key in `backend/.env` (or create it from `.env.example`).
+5. Run the backend and open frontend (instructions are in the README inside the repo).
+6. Commit, push branch and create a Pull Request on GitHub.
+
+---
+
+## Backend (Flask) — `backend/app.py`
+
+```python
+from flask import Flask, request, jsonify
+import os
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+API_KEY = os.getenv('OPENWEATHER_API_KEY')
+
+app = Flask(__name__)
+
+@app.route('/forecast')
+def forecast():
+    # expects query like /forecast?city=Pune
+    city = request.args.get('city')
+    if not city:
+        return jsonify({'error': 'city parameter required'}), 400
+
+    # Call OpenWeatherMap geocoding to get lat/lon, then One Call
+    geo_url = f'http://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={API_KEY}'
+    g = requests.get(geo_url).json()
+    if not g:
+        return jsonify({'error': 'city not found'}), 404
+
+    lat, lon = g[0]['lat'], g[0]['lon']
+    onecall = (
+        f'https://api.openweathermap.org/data/2.5/onecall?lat={lat}&lon={lon}&exclude=minutely,hourly,alerts&units=metric&appid={API_KEY}'
+    )
+    r = requests.get(onecall).json()
+
+    # Keep only 7-day daily forecasts with useful fields
+    days = []
+    for d in r.get('daily', [])[:7]:
+        days.append({
+            'date': d['dt'],
+            'temp_min': d['temp']['min'],
+            'temp_max': d['temp']['max'],
+            'humidity': d['humidity'],
+            'wind_speed': d['wind_speed'],
+            'weather': d['weather'][0]['main'],
+            'description': d['weather'][0]['description']
+        })
+
+    return jsonify({'city': city, 'forecast': days})
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+```
+
+---
+
+### `backend/requirements.txt`
+
+```
+Flask
+python-dotenv
+requests
+```
+
+---
+
+## Frontend — `frontend/index.html` & `frontend/script.js`
+
+`index.html`
+
+```html
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>7-Day Forecast</title>
+</head>
+<body>
+  <h1>7-Day Forecast</h1>
+  <input id="city" placeholder="Enter city (e.g., Pune)" />
+  <button id="btn">Get Forecast</button>
+  <div id="output"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
+```
+
+`script.js`
+
+```javascript
+const btn = document.getElementById('btn');
+btn.addEventListener('click', async () => {
+  const city = document.getElementById('city').value || 'Pune';
+  const res = await fetch(`/forecast?city=${encodeURIComponent(city)}`);
+  const data = await res.json();
+  const out = document.getElementById('output');
+  if (data.error) { out.innerText = data.error; return; }
+  out.innerHTML = data.forecast.map(d => `
+    <div>
+      <strong>${new Date(d.date * 1000).toDateString()}</strong>
+      <div>${d.weather} — ${d.description}</div>
+      <div>Min: ${d.temp_min}°C | Max: ${d.temp_max}°C | Humidity: ${d.humidity}% | Wind: ${d.wind_speed} m/s</div>
+    </div>
+    <hr>
+  `).join('');
+});
+```
+
+---
+
+## Environment example — `backend/.env.example`
+
+```
+OPENWEATHER_API_KEY=your_openweather_api_key_here
+```
+
+---
+
+## How to run locally
+
+1. Backend (from `backend/`):
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate   # or venv\Scripts\activate on Windows
+   pip install -r requirements.txt
+   cp .env.example .env
+   # edit .env and paste your API key
+   python app.py
+   ```
+2. Frontend: open `frontend/index.html` in browser OR serve with a static server. If you run Flask on port 5000, you can place the frontend files in Flask static folder or run a local static server and set the backend URL in `script.js`.
+
+---
+
+## Contribution & Pull Request workflow
+
+1. Fork the repo.
+2. Create a branch: `git checkout -b feat/your-feature`
+3. Make changes, commit with meaningful messages.
+4. Push branch: `git push origin feat/your-feature`
+5. Open a Pull Request to `main` from your branch.
+
+Add screenshots or a demo link in the PR description.
+
+---
+
+## Next steps / ideas
+
+* Add caching & DB for historical data.
+* Add ML model (LSTM/Prophet) and a pipeline to re-train on new data.
+* Add unit tests & CI (GitHub Actions) to deploy automatically.
+
+---
+
+MIT License
